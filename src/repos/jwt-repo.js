@@ -1,9 +1,11 @@
 const jwt = require('jsonwebtoken')
+const ck = require('cookie')
+const {curry} = require('ramda')
 
 const {config} = require('../config')
 const bcrypt = {
   compare: () => {
-    return Promise.resolve(false)
+    return Promise.resolve(true)
   },
 }
 
@@ -16,6 +18,40 @@ const signJwt = state => {
   return {
     ...state,
     token,
+  }
+}
+
+const getToken = curry((req, state) => {
+  const {cookie} = req.headers
+  console.log('cookie', cookie)
+  let token
+  try {
+    token = ck.parse(cookie).token
+  } catch (e) {
+    // do nothing
+  }
+  console.log('token:', token)
+  return {
+    ...state,
+    token,
+  }
+})
+
+const verifyJwt = state => {
+  const {secret} = config.jwt
+  const {token} = state
+  if (!token) {
+    throw new Error('No auth token found')
+  }
+  let decodedToken
+  try {
+    decodedToken = jwt.verify(token, secret)
+  } catch (e) {
+    throw new Error(e.message)
+  }
+  return {
+    ...state,
+    decodedToken,
   }
 }
 
@@ -35,4 +71,6 @@ const comparePassword = async state => {
 module.exports = {
   signJwt,
   comparePassword,
+  getToken,
+  verifyJwt,
 }

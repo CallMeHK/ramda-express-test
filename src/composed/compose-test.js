@@ -2,7 +2,12 @@ const {pipe, curry} = require('ramda')
 
 const {getPool, makePgQuery, queryFromState} = require('../repos/pg-repo')
 const {sendResponse} = require('../repos/express-repo')
-const {signJwt, comparePassword} = require('../repos/jwt-repo')
+const {
+  signJwt,
+  comparePassword,
+  getToken,
+  verifyJwt,
+} = require('../repos/jwt-repo')
 
 const then = curry((fn, prom) =>
   prom.then(fn).catch(e => {
@@ -52,7 +57,9 @@ const prepareAuthResponse = state => {
   console.log('prepareAuthResponse:', state)
   return {
     ...state,
-    response: state.getUser.rows[0],
+    response: {
+      success: true,
+    },
   }
 }
 
@@ -85,8 +92,61 @@ const authenticateUser = async (req, res) => {
   }
 }
 
+const prepGetUserInfoResponse = state => {
+  return {...state, response: state.decodedToken}
+}
+
+const getUserInfo = async (req, res) => {
+  const composed = pipe(
+    getToken(req),
+    verifyJwt,
+    prepGetUserInfoResponse,
+    sendResponse(res),
+  )
+  try {
+    composed({})
+  } catch (e) {
+    console.log(e)
+    res.status(401)
+    res.send({error: e.message})
+  }
+}
+
+const setNullToken = state => {
+  return {
+    ...state,
+    token: 'null',
+  }
+}
+
+const prepareLogOutUserResponse = state => {
+  return {
+    ...state,
+    response: {
+      success: true,
+    },
+  }
+}
+
+const logOutUser = (req, res) => {
+  const composed = pipe(
+    setNullToken,
+    setCookie(res),
+    prepareLogOutUserResponse,
+    sendResponse(res),
+  )
+  try {
+    composed({})
+  } catch (e) {
+    res.status(400)
+    res.send({message: e.message})
+  }
+}
+
 module.exports = {
   then,
   getPgTime,
   authenticateUser,
+  getUserInfo,
+  logOutUser,
 }
